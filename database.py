@@ -44,13 +44,14 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                location TEXT DEFAULT '',
+                theme TEXT DEFAULT '',
                 start_date TEXT DEFAULT '',
                 end_date TEXT DEFAULT ''
             )
             """,
             commit=True,
         )
+        self._migrate_events_location_to_theme()
         self._execute(
             """
             CREATE TABLE IF NOT EXISTS tasks (
@@ -95,7 +96,20 @@ class DatabaseManager:
         )
 
     # Event CRUD
-    def add_event(self, name: str, location: str, start_date: str, end_date: str) -> int:
+    def _migrate_events_location_to_theme(self) -> None:
+        columns = self._execute("PRAGMA table_info(events)", fetch_all=True)
+        column_names = {col["name"] for col in columns}
+        if "theme" in column_names:
+            return
+
+        self._execute("ALTER TABLE events ADD COLUMN theme TEXT DEFAULT ''", commit=True)
+        if "location" in column_names:
+            self._execute(
+                "UPDATE events SET theme = COALESCE(location, '') WHERE COALESCE(theme, '') = ''",
+                commit=True,
+            )
+
+    def add_event(self, name: str, theme: str, start_date: str, end_date: str) -> int:
         return self._execute(
             "INSERT INTO events (name, location, start_date, end_date) VALUES (?, ?, ?, ?)",
             (name, location, start_date, end_date),
@@ -104,7 +118,7 @@ class DatabaseManager:
 
     def get_events(self) -> list[sqlite3.Row]:
         return self._execute(
-            "SELECT id, name, location, start_date, end_date FROM events ORDER BY id DESC",
+            "SELECT id, name, theme, start_date, end_date FROM events ORDER BY id DESC",
             fetch_all=True,
         )
 

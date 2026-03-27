@@ -218,8 +218,8 @@ class MainWindow(QMainWindow):
 
         self.event_name_input = QLineEdit()
         self.event_name_input.setPlaceholderText("Contoh: Seminar Teknologi 2026")
-        self.event_location_input = QLineEdit()
-        self.event_location_input.setPlaceholderText("Lokasi kegiatan")
+        self.event_theme_input = QLineEdit()
+        self.event_theme_input.setPlaceholderText("Tema kegiatan")
         self.event_start_input = QDateEdit()
         self.event_end_input = QDateEdit()
         for date_edit in (self.event_start_input, self.event_end_input):
@@ -227,7 +227,7 @@ class MainWindow(QMainWindow):
             date_edit.setDate(QDate.currentDate())
 
         form_layout.addRow("Nama Kegiatan", self.event_name_input)
-        form_layout.addRow("Lokasi", self.event_location_input)
+        form_layout.addRow("Tema", self.event_theme_input)
         form_layout.addRow("Tanggal Mulai", self.event_start_input)
         form_layout.addRow("Tanggal Selesai", self.event_end_input)
 
@@ -243,7 +243,7 @@ class MainWindow(QMainWindow):
         event_container.addWidget(form_card)
         event_container.addLayout(buttons)
 
-        self.table_events = self._create_table(["ID", "Nama", "Lokasi", "Mulai", "Selesai"])
+        self.table_events = self._create_table(["ID", "Nama", "Tema", "Mulai", "Selesai"])
         layout.addLayout(event_container)
         layout.addWidget(self.table_events, 1)
         return page
@@ -509,7 +509,7 @@ class MainWindow(QMainWindow):
             values = [
                 str(row_data["id"]),
                 row_data["name"],
-                row_data["location"],
+                row_data["theme"],
                 row_data["start_date"],
                 row_data["end_date"],
             ]
@@ -588,17 +588,17 @@ class MainWindow(QMainWindow):
 
     def add_event(self) -> None:
         name = self.event_name_input.text().strip()
-        location = self.event_location_input.text().strip()
+        theme = self.event_theme_input.text().strip()
         if not name:
             QMessageBox.warning(self, "Input Tidak Valid", "Nama kegiatan wajib diisi.")
             return
 
         start_date = self.event_start_input.date().toString("yyyy-MM-dd")
         end_date = self.event_end_input.date().toString("yyyy-MM-dd")
-        self.db.add_event(name, location, start_date, end_date)
+        self.db.add_event(name, theme, start_date, end_date)
 
         self.event_name_input.clear()
-        self.event_location_input.clear()
+        self.event_theme_input.clear()
         self.refresh_events_and_context()
 
     def delete_selected_event(self) -> None:
