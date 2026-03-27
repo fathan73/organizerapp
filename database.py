@@ -1,8 +1,3 @@
-"""Database layer for Event Committee Management System.
-
-This module contains all SQLite access code and reusable CRUD helpers.
-"""
-
 from __future__ import annotations
 
 import sqlite3
@@ -14,181 +9,218 @@ DB_NAME = "event_committee.db"
 
 
 class DatabaseManager:
-    """Handle all database operations for the application."""
-
     def __init__(self, db_path: str = DB_NAME) -> None:
         self.db_path = str(Path(db_path))
-        self._init_database()
+        self._initialize_database()
 
-    def _get_connection(self) -> sqlite3.Connection:
-        """Create a new SQLite connection with row support."""
-        connection = sqlite3.connect(self.db_path)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA foreign_keys = ON")
-        return connection
+    def _connection(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        return conn
 
     def _execute(
         self,
         query: str,
         params: tuple[Any, ...] = (),
         *,
-        fetch: bool = False,
+        fetch_all: bool = False,
         fetch_one: bool = False,
         commit: bool = False,
     ) -> Any:
-        """Generic query executor to reduce duplicate code."""
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(query, params)
-
+        with self._connection() as conn:
+            cur = conn.cursor()
+            cur.execute(query, params)
             if commit:
                 conn.commit()
-
             if fetch_one:
-                return cursor.fetchone()
-            if fetch:
-                return cursor.fetchall()
+                return cur.fetchone()
+            if fetch_all:
+                return cur.fetchall()
+            return cur.lastrowid
 
-            return cursor.lastrowid
-
-    def _init_database(self) -> None:
-        """Create required tables if they don't exist yet."""
-        create_events = """
-        CREATE TABLE IF NOT EXISTS events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            theme TEXT NOT NULL,
-            start_date TEXT NOT NULL,
-            end_date TEXT NOT NULL
+    def _initialize_database(self) -> None:
+        self._execute(
+            """
+            CREATE TABLE IF NOT EXISTS events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                theme TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL
+            )
+            """,
+            commit=True,
         )
-        """
-
-        create_tasks = """
-        CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            task_name TEXT NOT NULL,
-            deadline TEXT NOT NULL,
-            status TEXT NOT NULL CHECK(status IN ('Belum', 'Proses', 'Selesai')),
-            event_id INTEGER NOT NULL,
-            FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
+        self._execute(
+            """
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                deadline TEXT NOT NULL,
+                status TEXT NOT NULL CHECK(status IN ('Belum', 'Proses', 'Selesai')),
+                event_id INTEGER NOT NULL,
+                FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
+            )
+            """,
+            commit=True,
         )
-        """
-
-        create_panitia = """
-        CREATE TABLE IF NOT EXISTS panitia (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            role TEXT NOT NULL,
-            division TEXT NOT NULL,
-            event_id INTEGER NOT NULL,
-            FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
+        self._execute(
+            """
+            CREATE TABLE IF NOT EXISTS panitia (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                role TEXT NOT NULL,
+                division TEXT NOT NULL,
+                event_id INTEGER NOT NULL,
+                FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
+            )
+            """,
+            commit=True,
         )
-        """
+        self._execute(
+            """
+            CREATE TABLE IF NOT EXISTS keuangan (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL CHECK(type IN ('Masuk', 'Keluar')),
+                amount REAL NOT NULL CHECK(amount >= 0),
+                description TEXT NOT NULL,
+                event_id INTEGER NOT NULL,
+                FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
+            )
+            """,
+            commit=True,
+        )
 
-        self._execute(create_events, commit=True)
-        self._execute(create_tasks, commit=True)
-        self._execute(create_panitia, commit=True)
-
-    # -----------------------------
-    # Events CRUD
-    # -----------------------------
     def add_event(self, name: str, theme: str, start_date: str, end_date: str) -> int:
-        query = """
-        INSERT INTO events (name, theme, start_date, end_date)
-        VALUES (?, ?, ?, ?)
-        """
-        return self._execute(query, (name, theme, start_date, end_date), commit=True)
+        return self._execute(
+            "INSERT INTO events (name, theme, start_date, end_date) VALUES (?, ?, ?, ?)",
+            (name, theme, start_date, end_date),
+            commit=True,
+        )
 
     def get_events(self) -> list[sqlite3.Row]:
-        query = "SELECT id, name, theme, start_date, end_date FROM events ORDER BY id DESC"
-        return self._execute(query, fetch=True)
+        return self._execute(
+            "SELECT id, name, theme, start_date, end_date FROM events ORDER BY start_date DESC, id DESC",
+            fetch_all=True,
+        )
 
     def delete_event(self, event_id: int) -> None:
-        query = "DELETE FROM events WHERE id = ?"
-        self._execute(query, (event_id,), commit=True)
+        self._execute("DELETE FROM events WHERE id = ?", (event_id,), commit=True)
 
-    # -----------------------------
-    # Tasks CRUD
-    # -----------------------------
-    def add_task(self, task_name: str, deadline: str, status: str, event_id: int) -> int:
-        query = """
-        INSERT INTO tasks (task_name, deadline, status, event_id)
-        VALUES (?, ?, ?, ?)
-        """
-        return self._execute(query, (task_name, deadline, status, event_id), commit=True)
+    def add_task(self, name: str, deadline: str, status: str, event_id: int) -> int:
+        return self._execute(
+            "INSERT INTO tasks (name, deadline, status, event_id) VALUES (?, ?, ?, ?)",
+            (name, deadline, status, event_id),
+            commit=True,
+        )
 
     def get_tasks(self) -> list[sqlite3.Row]:
-        query = """
-        SELECT
-            tasks.id,
-            tasks.task_name,
-            tasks.deadline,
-            tasks.status,
-            tasks.event_id,
-            events.name AS event_name
-        FROM tasks
-        INNER JOIN events ON tasks.event_id = events.id
-        ORDER BY tasks.id DESC
-        """
-        return self._execute(query, fetch=True)
+        return self._execute(
+            """
+            SELECT
+                t.id,
+                t.name,
+                t.deadline,
+                t.status,
+                t.event_id,
+                e.name AS event_name
+            FROM tasks t
+            JOIN events e ON e.id = t.event_id
+            ORDER BY t.deadline ASC, t.id DESC
+            """,
+            fetch_all=True,
+        )
 
     def delete_task(self, task_id: int) -> None:
-        query = "DELETE FROM tasks WHERE id = ?"
-        self._execute(query, (task_id,), commit=True)
+        self._execute("DELETE FROM tasks WHERE id = ?", (task_id,), commit=True)
 
-    def mark_task_completed(self, task_id: int) -> None:
-        query = "UPDATE tasks SET status = 'Selesai' WHERE id = ?"
-        self._execute(query, (task_id,), commit=True)
+    def mark_task_done(self, task_id: int) -> None:
+        self._execute("UPDATE tasks SET status = 'Selesai' WHERE id = ?", (task_id,), commit=True)
 
-    # -----------------------------
-    # Panitia CRUD
-    # -----------------------------
     def add_panitia(self, name: str, role: str, division: str, event_id: int) -> int:
-        query = """
-        INSERT INTO panitia (name, role, division, event_id)
-        VALUES (?, ?, ?, ?)
-        """
-        return self._execute(query, (name, role, division, event_id), commit=True)
+        return self._execute(
+            "INSERT INTO panitia (name, role, division, event_id) VALUES (?, ?, ?, ?)",
+            (name, role, division, event_id),
+            commit=True,
+        )
 
     def get_panitia(self) -> list[sqlite3.Row]:
-        query = """
-        SELECT
-            panitia.id,
-            panitia.name,
-            panitia.role,
-            panitia.division,
-            panitia.event_id,
-            events.name AS event_name
-        FROM panitia
-        INNER JOIN events ON panitia.event_id = events.id
-        ORDER BY panitia.id DESC
-        """
-        return self._execute(query, fetch=True)
+        return self._execute(
+            """
+            SELECT
+                p.id,
+                p.name,
+                p.role,
+                p.division,
+                p.event_id,
+                e.name AS event_name
+            FROM panitia p
+            JOIN events e ON e.id = p.event_id
+            ORDER BY p.id DESC
+            """,
+            fetch_all=True,
+        )
 
     def delete_panitia(self, member_id: int) -> None:
-        query = "DELETE FROM panitia WHERE id = ?"
-        self._execute(query, (member_id,), commit=True)
+        self._execute("DELETE FROM panitia WHERE id = ?", (member_id,), commit=True)
 
-    # -----------------------------
-    # Dashboard helpers
-    # -----------------------------
-    def get_dashboard_stats(self) -> dict[str, int | float]:
-        total_events = self._execute("SELECT COUNT(*) AS total FROM events", fetch_one=True)["total"]
-        total_tasks = self._execute("SELECT COUNT(*) AS total FROM tasks", fetch_one=True)["total"]
-        completed_tasks = self._execute(
-            "SELECT COUNT(*) AS total FROM tasks WHERE status = 'Selesai'",
+    def add_keuangan(self, tx_type: str, amount: float, description: str, event_id: int) -> int:
+        return self._execute(
+            "INSERT INTO keuangan (type, amount, description, event_id) VALUES (?, ?, ?, ?)",
+            (tx_type, amount, description, event_id),
+            commit=True,
+        )
+
+    def get_keuangan(self) -> list[sqlite3.Row]:
+        return self._execute(
+            """
+            SELECT
+                k.id,
+                k.type,
+                k.amount,
+                k.description,
+                k.event_id,
+                e.name AS event_name
+            FROM keuangan k
+            JOIN events e ON e.id = k.event_id
+            ORDER BY k.id DESC
+            """,
+            fetch_all=True,
+        )
+
+    def delete_keuangan(self, transaction_id: int) -> None:
+        self._execute("DELETE FROM keuangan WHERE id = ?", (transaction_id,), commit=True)
+
+    def get_finance_balance(self) -> float:
+        row = self._execute(
+            """
+            SELECT COALESCE(SUM(
+                CASE
+                    WHEN type = 'Masuk' THEN amount
+                    WHEN type = 'Keluar' THEN -amount
+                    ELSE 0
+                END
+            ), 0) AS balance
+            FROM keuangan
+            """,
             fetch_one=True,
-        )["total"]
-        incomplete_tasks = total_tasks - completed_tasks
+        )
+        return float(row["balance"] if row else 0)
 
-        progress = 0.0
-        if total_tasks > 0:
-            progress = (completed_tasks / total_tasks) * 100
+    def get_dashboard_stats(self) -> dict[str, int | float]:
+        total_events = int(self._execute("SELECT COUNT(*) AS total FROM events", fetch_one=True)["total"])
+        total_tasks = int(self._execute("SELECT COUNT(*) AS total FROM tasks", fetch_one=True)["total"])
+        completed_tasks = int(
+            self._execute("SELECT COUNT(*) AS total FROM tasks WHERE status = 'Selesai'", fetch_one=True)["total"]
+        )
+        incomplete_tasks = total_tasks - completed_tasks
+        progress_percentage = round((completed_tasks / total_tasks * 100) if total_tasks else 0.0, 2)
 
         return {
-            "total_events": int(total_events),
-            "total_tasks": int(total_tasks),
-            "completed_tasks": int(completed_tasks),
-            "incomplete_tasks": int(incomplete_tasks),
-            "progress_percentage": round(progress, 2),
+            "total_events": total_events,
+            "total_tasks": total_tasks,
+            "completed_tasks": completed_tasks,
+            "incomplete_tasks": incomplete_tasks,
+            "progress_percentage": progress_percentage,
         }
