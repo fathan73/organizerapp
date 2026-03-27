@@ -111,8 +111,8 @@ class DatabaseManager:
 
     def add_event(self, name: str, theme: str, start_date: str, end_date: str) -> int:
         return self._execute(
-            "INSERT INTO events (name, theme, start_date, end_date) VALUES (?, ?, ?, ?)",
-            (name, theme, start_date, end_date),
+            "INSERT INTO events (name, location, start_date, end_date) VALUES (?, ?, ?, ?)",
+            (name, location, start_date, end_date),
             commit=True,
         )
 
