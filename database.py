@@ -4,7 +4,6 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-
 DB_NAME = "event_committee.db"
 
 
@@ -29,15 +28,15 @@ class DatabaseManager:
         commit: bool = False,
     ) -> Any:
         with self._connection() as conn:
-            cur = conn.cursor()
-            cur.execute(query, params)
+            cursor = conn.cursor()
+            cursor.execute(query, params)
             if commit:
                 conn.commit()
             if fetch_one:
-                return cur.fetchone()
+                return cursor.fetchone()
             if fetch_all:
-                return cur.fetchall()
-            return cur.lastrowid
+                return cursor.fetchall()
+            return cursor.lastrowid
 
     def _initialize_database(self) -> None:
         self._execute(
@@ -45,20 +44,22 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                theme TEXT NOT NULL,
-                start_date TEXT NOT NULL,
-                end_date TEXT NOT NULL
+                theme TEXT DEFAULT '',
+                start_date TEXT DEFAULT '',
+                end_date TEXT DEFAULT ''
             )
             """,
             commit=True,
         )
+        self._migrate_events_location_to_theme()
         self._execute(
             """
             CREATE TABLE IF NOT EXISTS tasks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                deadline TEXT NOT NULL,
-                status TEXT NOT NULL CHECK(status IN ('Belum', 'Proses', 'Selesai')),
+                title TEXT NOT NULL,
+                deadline TEXT DEFAULT '',
+                notes TEXT DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'Belum' CHECK(status IN ('Belum', 'Selesai')),
                 event_id INTEGER NOT NULL,
                 FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
             )
@@ -71,7 +72,8 @@ class DatabaseManager:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 role TEXT NOT NULL,
-                division TEXT NOT NULL,
+                division TEXT DEFAULT '',
+                contact TEXT DEFAULT '',
                 event_id INTEGER NOT NULL,
                 FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
             )
@@ -82,15 +84,30 @@ class DatabaseManager:
             """
             CREATE TABLE IF NOT EXISTS keuangan (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                type TEXT NOT NULL CHECK(type IN ('Masuk', 'Keluar')),
+                tx_type TEXT NOT NULL CHECK(tx_type IN ('Masuk', 'Keluar')),
                 amount REAL NOT NULL CHECK(amount >= 0),
-                description TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                tx_date TEXT DEFAULT '',
                 event_id INTEGER NOT NULL,
                 FOREIGN KEY(event_id) REFERENCES events(id) ON DELETE CASCADE
             )
             """,
             commit=True,
         )
+
+    # Event CRUD
+    def _migrate_events_location_to_theme(self) -> None:
+        columns = self._execute("PRAGMA table_info(events)", fetch_all=True)
+        column_names = {col["name"] for col in columns}
+        if "theme" in column_names:
+            return
+
+        self._execute("ALTER TABLE events ADD COLUMN theme TEXT DEFAULT ''", commit=True)
+        if "location" in column_names:
+            self._execute(
+                "UPDATE events SET theme = COALESCE(location, '') WHERE COALESCE(theme, '') = ''",
+                commit=True,
+            )
 
     def add_event(self, name: str, theme: str, start_date: str, end_date: str) -> int:
         return self._execute(
@@ -101,126 +118,132 @@ class DatabaseManager:
 
     def get_events(self) -> list[sqlite3.Row]:
         return self._execute(
-            "SELECT id, name, theme, start_date, end_date FROM events ORDER BY start_date DESC, id DESC",
+            "SELECT id, name, theme, start_date, end_date FROM events ORDER BY id DESC",
             fetch_all=True,
         )
 
     def delete_event(self, event_id: int) -> None:
         self._execute("DELETE FROM events WHERE id = ?", (event_id,), commit=True)
 
-    def add_task(self, name: str, deadline: str, status: str, event_id: int) -> int:
+    # Task CRUD (filtered by event)
+    def add_task(self, title: str, deadline: str, notes: str, event_id: int) -> int:
         return self._execute(
-            "INSERT INTO tasks (name, deadline, status, event_id) VALUES (?, ?, ?, ?)",
-            (name, deadline, status, event_id),
+            "INSERT INTO tasks (title, deadline, notes, event_id) VALUES (?, ?, ?, ?)",
+            (title, deadline, notes, event_id),
             commit=True,
         )
 
-    def get_tasks(self) -> list[sqlite3.Row]:
+    def get_tasks_by_event(self, event_id: int) -> list[sqlite3.Row]:
         return self._execute(
             """
-            SELECT
-                t.id,
-                t.name,
-                t.deadline,
-                t.status,
-                t.event_id,
-                e.name AS event_name
-            FROM tasks t
-            JOIN events e ON e.id = t.event_id
-            ORDER BY t.deadline ASC, t.id DESC
+            SELECT id, title, deadline, notes, status, event_id
+            FROM tasks
+            WHERE event_id = ?
+            ORDER BY id DESC
             """,
+            (event_id,),
             fetch_all=True,
         )
 
-    def delete_task(self, task_id: int) -> None:
-        self._execute("DELETE FROM tasks WHERE id = ?", (task_id,), commit=True)
+    def delete_task(self, task_id: int, event_id: int) -> None:
+        self._execute("DELETE FROM tasks WHERE id = ? AND event_id = ?", (task_id, event_id), commit=True)
 
-    def mark_task_done(self, task_id: int) -> None:
-        self._execute("UPDATE tasks SET status = 'Selesai' WHERE id = ?", (task_id,), commit=True)
-
-    def add_panitia(self, name: str, role: str, division: str, event_id: int) -> int:
-        return self._execute(
-            "INSERT INTO panitia (name, role, division, event_id) VALUES (?, ?, ?, ?)",
-            (name, role, division, event_id),
+    def mark_task_done(self, task_id: int, event_id: int) -> None:
+        self._execute(
+            "UPDATE tasks SET status = 'Selesai' WHERE id = ? AND event_id = ?",
+            (task_id, event_id),
             commit=True,
         )
 
-    def get_panitia(self) -> list[sqlite3.Row]:
+    # Panitia CRUD (filtered by event)
+    def add_panitia(self, name: str, role: str, division: str, contact: str, event_id: int) -> int:
         return self._execute(
-            """
-            SELECT
-                p.id,
-                p.name,
-                p.role,
-                p.division,
-                p.event_id,
-                e.name AS event_name
-            FROM panitia p
-            JOIN events e ON e.id = p.event_id
-            ORDER BY p.id DESC
-            """,
-            fetch_all=True,
-        )
-
-    def delete_panitia(self, member_id: int) -> None:
-        self._execute("DELETE FROM panitia WHERE id = ?", (member_id,), commit=True)
-
-    def add_keuangan(self, tx_type: str, amount: float, description: str, event_id: int) -> int:
-        return self._execute(
-            "INSERT INTO keuangan (type, amount, description, event_id) VALUES (?, ?, ?, ?)",
-            (tx_type, amount, description, event_id),
+            "INSERT INTO panitia (name, role, division, contact, event_id) VALUES (?, ?, ?, ?, ?)",
+            (name, role, division, contact, event_id),
             commit=True,
         )
 
-    def get_keuangan(self) -> list[sqlite3.Row]:
+    def get_panitia_by_event(self, event_id: int) -> list[sqlite3.Row]:
         return self._execute(
             """
-            SELECT
-                k.id,
-                k.type,
-                k.amount,
-                k.description,
-                k.event_id,
-                e.name AS event_name
-            FROM keuangan k
-            JOIN events e ON e.id = k.event_id
-            ORDER BY k.id DESC
+            SELECT id, name, role, division, contact, event_id
+            FROM panitia
+            WHERE event_id = ?
+            ORDER BY id DESC
             """,
+            (event_id,),
             fetch_all=True,
         )
 
-    def delete_keuangan(self, transaction_id: int) -> None:
-        self._execute("DELETE FROM keuangan WHERE id = ?", (transaction_id,), commit=True)
+    def delete_panitia(self, member_id: int, event_id: int) -> None:
+        self._execute(
+            "DELETE FROM panitia WHERE id = ? AND event_id = ?",
+            (member_id, event_id),
+            commit=True,
+        )
 
-    def get_finance_balance(self) -> float:
-        row = self._execute(
+    # Keuangan CRUD (filtered by event)
+    def add_keuangan(self, tx_type: str, amount: float, description: str, tx_date: str, event_id: int) -> int:
+        return self._execute(
+            "INSERT INTO keuangan (tx_type, amount, description, tx_date, event_id) VALUES (?, ?, ?, ?, ?)",
+            (tx_type, amount, description, tx_date, event_id),
+            commit=True,
+        )
+
+    def get_keuangan_by_event(self, event_id: int) -> list[sqlite3.Row]:
+        return self._execute(
             """
-            SELECT COALESCE(SUM(
-                CASE
-                    WHEN type = 'Masuk' THEN amount
-                    WHEN type = 'Keluar' THEN -amount
-                    ELSE 0
-                END
-            ), 0) AS balance
+            SELECT id, tx_type, amount, description, tx_date, event_id
             FROM keuangan
+            WHERE event_id = ?
+            ORDER BY id DESC
             """,
+            (event_id,),
+            fetch_all=True,
+        )
+
+    def delete_keuangan(self, transaction_id: int, event_id: int) -> None:
+        self._execute(
+            "DELETE FROM keuangan WHERE id = ? AND event_id = ?",
+            (transaction_id, event_id),
+            commit=True,
+        )
+
+    # Dashboard stats (per event)
+    def get_dashboard_stats(self, event_id: int) -> dict[str, float | int]:
+        total_row = self._execute(
+            "SELECT COUNT(*) AS total FROM tasks WHERE event_id = ?",
+            (event_id,),
             fetch_one=True,
         )
-        return float(row["balance"] if row else 0)
-
-    def get_dashboard_stats(self) -> dict[str, int | float]:
-        total_events = int(self._execute("SELECT COUNT(*) AS total FROM events", fetch_one=True)["total"])
-        total_tasks = int(self._execute("SELECT COUNT(*) AS total FROM tasks", fetch_one=True)["total"])
-        completed_tasks = int(
-            self._execute("SELECT COUNT(*) AS total FROM tasks WHERE status = 'Selesai'", fetch_one=True)["total"]
+        done_row = self._execute(
+            "SELECT COUNT(*) AS done FROM tasks WHERE event_id = ? AND status = 'Selesai'",
+            (event_id,),
+            fetch_one=True,
         )
+        balance_row = self._execute(
+            """
+            SELECT COALESCE(
+                SUM(CASE WHEN tx_type = 'Masuk' THEN amount ELSE -amount END),
+                0
+            ) AS balance
+            FROM keuangan
+            WHERE event_id = ?
+            """,
+            (event_id,),
+            fetch_one=True,
+        )
+
+        total_tasks = int(total_row["total"] if total_row else 0)
+        completed_tasks = int(done_row["done"] if done_row else 0)
         incomplete_tasks = total_tasks - completed_tasks
-        progress_percentage = round((completed_tasks / total_tasks * 100) if total_tasks else 0.0, 2)
+        progress = round((completed_tasks / total_tasks * 100) if total_tasks else 0.0, 2)
+        balance = float(balance_row["balance"] if balance_row else 0.0)
 
         return {
-            "total_events": total_events,
             "total_tasks": total_tasks,
             "completed_tasks": completed_tasks,
             "incomplete_tasks": incomplete_tasks,
-            "progress_percentage": progress_percentage,
+            "progress": progress,
+            "balance": balance,
         }
