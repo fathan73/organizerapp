@@ -469,10 +469,13 @@ class MainWindow(QMainWindow):
         controls.addStretch()
 
         self.panitia_search_input = QLineEdit()
-        self.panitia_search_input.setPlaceholderText("Cari nama, jabatan, divisi, atau kontak...")
+        self.panitia_search_input.setObjectName("panitiaSearch")
+        self.panitia_search_input.setPlaceholderText("Cari nama, jabatan, atau divisi...")
 
-        self.table_panitia = self._create_table(["ID", "Nama", "Jabatan", "Divisi", "Kontak", "Actions"])
-        self._setup_action_table(self.table_panitia, 5)
+        self.table_panitia = self._create_table(["Nama", "Jabatan", "Divisi", "Aksi"])
+        self.table_panitia.setObjectName("panitiaTable")
+        self.create_table_style(self.table_panitia)
+        self._setup_action_table(self.table_panitia, 3)
 
         layout.addWidget(form_card)
         layout.addLayout(controls)
@@ -541,6 +544,13 @@ class MainWindow(QMainWindow):
         header = table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(action_col, QHeaderView.ResizeMode.ResizeToContents)
+        if table is getattr(self, "table_panitia", None):
+            header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+            header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+            header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+            header.setStretchLastSection(False)
+            header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def _connect_signals(self) -> None:
         self.nav_dashboard.clicked.connect(lambda: self.switch_page(0))
@@ -594,21 +604,20 @@ class MainWindow(QMainWindow):
             QPushButton[primary="true"]:hover { background: #2563eb; }
 
             QPushButton[action="true"] {
-                border-radius: 8px;
-                padding: 0px;
-                min-width: 28px;
-                max-width: 28px;
-                min-height: 28px;
-                max-height: 28px;
-                font-size: 14px;
+                border-radius: 9px;
+                padding: 0px 8px;
+                min-width: 30px;
+                min-height: 30px;
+                max-height: 30px;
+                font-size: 13px;
                 font-weight: 900;
             }
-            QPushButton[action="true"][tone="edit"] { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
-            QPushButton[action="true"][tone="edit"]:hover { background: #bfdbfe; }
+            QPushButton[action="true"][tone="edit"] { background: #2563eb; color: #ffffff; border: 1px solid #1d4ed8; }
+            QPushButton[action="true"][tone="edit"]:hover { background: #1d4ed8; }
             QPushButton[action="true"][tone="success"] { background: #d1fae5; color: #047857; border: 1px solid #a7f3d0; }
             QPushButton[action="true"][tone="success"]:hover { background: #a7f3d0; }
-            QPushButton[action="true"][tone="danger"] { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
-            QPushButton[action="true"][tone="danger"]:hover { background: #fecaca; }
+            QPushButton[action="true"][tone="danger"] { background: #dc2626; color: #ffffff; border: 1px solid #b91c1c; }
+            QPushButton[action="true"][tone="danger"]:hover { background: #b91c1c; }
             QPushButton[action="true"]:disabled { background: #f3f4f6; border: 1px solid #e5e7eb; color: #9ca3af; }
 
             #sidebar QPushButton {
@@ -676,6 +685,73 @@ class MainWindow(QMainWindow):
             QDialog { background: #f4f6f8; }
             """
         )
+
+    def create_table_style(self, table: QTableWidget) -> None:
+        table.setStyleSheet(
+            """
+            QTableWidget#panitiaTable {
+                background: #ffffff;
+                alternate-background-color: #f8fafc;
+                border: 1px solid #e5e7eb;
+                border-radius: 12px;
+                gridline-color: transparent;
+                outline: 0;
+                font-size: 10.5pt;
+            }
+            QTableWidget#panitiaTable::item {
+                border: none;
+                border-bottom: 1px solid #eef2f7;
+                padding: 10px 12px;
+            }
+            QTableWidget#panitiaTable::item:hover {
+                background: #f1f5f9;
+            }
+            QTableWidget#panitiaTable::item:selected {
+                background: #dbeafe;
+                color: #111827;
+            }
+            QHeaderView::section {
+                background: #f3f4f6;
+                color: #1f2937;
+                border: none;
+                border-bottom: 1px solid #e5e7eb;
+                padding: 11px 10px;
+                font-weight: 800;
+                font-size: 11pt;
+            }
+            QLineEdit#panitiaSearch {
+                background: #ffffff;
+                border: 1px solid #d1d5db;
+                border-radius: 10px;
+                padding: 10px 12px;
+                font-size: 10.5pt;
+            }
+            """
+        )
+
+    def create_badge(self, text: str) -> QLabel:
+        label = QLabel(text or "-")
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        division_text = (text or "").strip().lower()
+        badge_map = {
+            "acara": ("#dbeafe", "#1d4ed8"),
+            "konsumsi": ("#dcfce7", "#166534"),
+            "humas": ("#ffedd5", "#c2410c"),
+        }
+        background, foreground = badge_map.get(division_text, ("#e5e7eb", "#374151"))
+        label.setStyleSheet(
+            f"""
+            QLabel {{
+                background: {background};
+                color: {foreground};
+                border-radius: 10px;
+                padding: 6px 12px;
+                font-size: 10pt;
+                font-weight: 700;
+            }}
+            """
+        )
+        return label
 
     def switch_page(self, index: int) -> None:
         self.stack.setCurrentIndex(index)
@@ -830,21 +906,33 @@ class MainWindow(QMainWindow):
             self._set_empty_table(self.table_panitia, "Silakan buat kegiatan terlebih dahulu")
             self.table_panitia.blockSignals(False)
             return
-        search_text = self.panitia_search_input.text().strip()
-        data = self.db.get_panitia_by_event(event_id, search_text)
+        search_text = self.panitia_search_input.text().strip().lower()
+        raw_data = self.db.get_panitia_by_event(event_id)
+        data = []
+        for member in raw_data:
+            if not search_text:
+                data.append(member)
+                continue
+            haystack = " ".join(
+                [
+                    str(member["name"] or "").lower(),
+                    str(member["role"] or "").lower(),
+                    str(member["division"] or "").lower(),
+                ]
+            )
+            if search_text in haystack:
+                data.append(member)
         for member in data:
             row = self.table_panitia.rowCount()
             self.table_panitia.insertRow(row)
             items = [
-                self._create_text_item(str(member["id"]), editable=False, user_data=int(member["id"]), center=True),
                 self._create_text_item(member["name"], editable=False),
                 self._create_text_item(member["role"], editable=False, center=True),
-                self._create_text_item(member["division"] or "-", editable=False, center=True),
-                self._create_text_item(member["contact"] or "-", editable=False),
             ]
             for col, item in enumerate(items):
                 self.table_panitia.setItem(row, col, item)
-            edit_btn = self._create_action_button("\u270e", "Edit anggota")
+            self.table_panitia.setCellWidget(row, 2, self.create_badge(member["division"] or "-"))
+            edit_btn = self._create_action_button("\u270f\ufe0f Edit", "Edit anggota", wide=True)
             edit_btn.clicked.connect(
                 lambda _,
                 mid=member["id"],
@@ -852,12 +940,12 @@ class MainWindow(QMainWindow):
                 role=member["role"],
                 division=member["division"]: self._open_panitia_edit_dialog(mid, name, role, division)
             )
-            delete_btn = self._create_action_button("\u00d7", "Hapus anggota", danger=True)
+            delete_btn = self._create_action_button("\U0001f5d1\ufe0f Hapus", "Hapus anggota", danger=True, wide=True)
             delete_btn.clicked.connect(
                 lambda _, mid=member["id"], name=member["name"]: self._handle_panitia_delete(mid, name)
             )
-            self.table_panitia.setItem(row, 5, self._create_text_item("", editable=False))
-            self.table_panitia.setCellWidget(row, 5, self._build_action_cell([edit_btn, delete_btn]))
+            self.table_panitia.setItem(row, 3, self._create_text_item("", editable=False, center=True))
+            self.table_panitia.setCellWidget(row, 3, self._build_action_cell([edit_btn, delete_btn]))
         self._set_empty_table(self.table_panitia, "Belum ada anggota panitia")
         self.table_panitia.setSortingEnabled(bool(data))
         self.table_panitia.blockSignals(False)
@@ -1680,9 +1768,11 @@ class MainWindow(QMainWindow):
         item.setForeground(QColor("#9ca3af"))
         font = item.font()
         font.setBold(True)
+        if table is self.table_panitia:
+            font.setPointSize(12)
         item.setFont(font)
         table.setItem(0, 0, item)
-        table.setRowHeight(0, 62)
+        table.setRowHeight(0, 72 if table is self.table_panitia else 62)
 
     def _create_text_item(
         self, text: str, *, editable: bool = False, user_data: object | None = None, center: bool = False
@@ -1699,7 +1789,7 @@ class MainWindow(QMainWindow):
         return item
 
     def _create_action_button(
-        self, text: str, tooltip: str, *, danger: bool = False, success: bool = False
+        self, text: str, tooltip: str, *, danger: bool = False, success: bool = False, wide: bool = False
     ) -> QPushButton:
         btn = QPushButton(text)
         btn.setProperty("action", True)
@@ -1711,7 +1801,12 @@ class MainWindow(QMainWindow):
             btn.setProperty("success", True)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setToolTip(tooltip)
-        btn.setFixedSize(28, 28)
+        btn.setFont(QFont("Segoe UI Emoji", 9, QFont.Weight.Bold))
+        if wide:
+            btn.setFixedHeight(30)
+            btn.setMinimumWidth(84)
+        else:
+            btn.setFixedSize(30, 30)
         return btn
 
     def _build_action_cell(self, buttons: list[QPushButton]) -> QWidget:
