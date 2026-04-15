@@ -604,21 +604,23 @@ class MainWindow(QMainWindow):
             QPushButton[primary="true"]:hover { background: #2563eb; }
 
             QPushButton[action="true"] {
-                border-radius: 9px;
-                padding: 0px 8px;
-                min-width: 30px;
-                min-height: 30px;
-                max-height: 30px;
-                font-size: 13px;
+                border-radius: 8px;
+                border: none;
+                padding: 6px 10px;
+                min-width: 34px;
+                min-height: 34px;
+                max-height: 34px;
+                font-size: 14px;
                 font-weight: 900;
             }
-            QPushButton[action="true"][tone="edit"] { background: #2563eb; color: #ffffff; border: 1px solid #1d4ed8; }
-            QPushButton[action="true"][tone="edit"]:hover { background: #1d4ed8; }
-            QPushButton[action="true"][tone="success"] { background: #d1fae5; color: #047857; border: 1px solid #a7f3d0; }
-            QPushButton[action="true"][tone="success"]:hover { background: #a7f3d0; }
-            QPushButton[action="true"][tone="danger"] { background: #dc2626; color: #ffffff; border: 1px solid #b91c1c; }
-            QPushButton[action="true"][tone="danger"]:hover { background: #b91c1c; }
-            QPushButton[action="true"]:disabled { background: #f3f4f6; border: 1px solid #e5e7eb; color: #9ca3af; }
+            QPushButton[action="true"][tone="edit"] { background: #dbeafe; color: #1d4ed8; }
+            QPushButton[action="true"][tone="edit"]:hover { background: #bfdbfe; }
+            QPushButton[action="true"][tone="success"] { background: #dcfce7; color: #15803d; }
+            QPushButton[action="true"][tone="success"]:hover { background: #bbf7d0; }
+            QPushButton[action="true"][tone="danger"] { background: #fee2e2; color: #dc2626; }
+            QPushButton[action="true"][tone="danger"]:hover { background: #fecaca; }
+            QPushButton[action="true"]:pressed { padding-top: 7px; padding-bottom: 5px; }
+            QPushButton[action="true"]:disabled { background: #f3f4f6; color: #9ca3af; }
 
             #sidebar QPushButton {
                 background: transparent;
@@ -827,7 +829,7 @@ class MainWindow(QMainWindow):
             ]
             for col, item in enumerate(items):
                 self.table_events.setItem(row, col, item)
-            edit_btn = self._create_action_button("\u270e", "Edit event")
+            edit_btn = self._create_action_button("\u270f", "Edit data")
             edit_btn.clicked.connect(
                 lambda _,
                 eid=row_data["id"],
@@ -837,7 +839,7 @@ class MainWindow(QMainWindow):
                 end=row_data["end_date"],
                 target=row_data["target_dana"]: self._open_event_edit_dialog(eid, name, theme, start, end, target)
             )
-            delete_btn = self._create_action_button("\u00d7", "Hapus event", danger=True)
+            delete_btn = self._create_action_button("\U0001f5d1", "Hapus data", danger=True)
             delete_btn.clicked.connect(
                 lambda _, eid=row_data["id"], name=row_data["name"]: self._handle_event_delete(eid, name)
             )
@@ -874,10 +876,10 @@ class MainWindow(QMainWindow):
             ]
             for col, item in enumerate(items):
                 self.table_tasks.setItem(row, col, item)
-            done_btn = self._create_action_button("\u2713", "Tandai selesai", success=True)
+            done_btn = self._create_action_button("\u2714", "Tandai selesai", success=True)
             done_btn.setEnabled(not completed)
             done_btn.clicked.connect(lambda _, tid=task["id"]: self._handle_task_done(tid))
-            edit_btn = self._create_action_button("\u270e", "Edit task")
+            edit_btn = self._create_action_button("\u270f", "Edit data")
             edit_btn.clicked.connect(
                 lambda _,
                 tid=task["id"],
@@ -885,7 +887,7 @@ class MainWindow(QMainWindow):
                 divisi=task["divisi"],
                 deadline=task["deadline"]: self._open_task_edit_dialog(tid, title, divisi, deadline)
             )
-            delete_btn = self._create_action_button("\u00d7", "Hapus task", danger=True)
+            delete_btn = self._create_action_button("\U0001f5d1", "Hapus data", danger=True)
             delete_btn.clicked.connect(
                 lambda _, tid=task["id"], title=task["title"]: self._handle_task_delete(tid, title)
             )
@@ -932,7 +934,7 @@ class MainWindow(QMainWindow):
             for col, item in enumerate(items):
                 self.table_panitia.setItem(row, col, item)
             self.table_panitia.setCellWidget(row, 2, self.create_badge(member["division"] or "-"))
-            edit_btn = self._create_action_button("\u270f\ufe0f Edit", "Edit anggota", wide=True)
+            edit_btn = self._create_action_button("\u270f", "Edit data")
             edit_btn.clicked.connect(
                 lambda _,
                 mid=member["id"],
@@ -940,7 +942,7 @@ class MainWindow(QMainWindow):
                 role=member["role"],
                 division=member["division"]: self._open_panitia_edit_dialog(mid, name, role, division)
             )
-            delete_btn = self._create_action_button("\U0001f5d1\ufe0f Hapus", "Hapus anggota", danger=True, wide=True)
+            delete_btn = self._create_action_button("\U0001f5d1", "Hapus data", danger=True)
             delete_btn.clicked.connect(
                 lambda _, mid=member["id"], name=member["name"]: self._handle_panitia_delete(mid, name)
             )
@@ -980,7 +982,7 @@ class MainWindow(QMainWindow):
             for col, item in enumerate(items):
                 self.table_finance.setItem(row, col, item)
             self._apply_finance_row_style(row, tx["tx_type"] == "Masuk")
-            edit_btn = self._create_action_button("\u270e", "Edit transaksi")
+            edit_btn = self._create_action_button("\u270f", "Edit data")
             edit_btn.clicked.connect(
                 lambda _,
                 tid=tx["id"],
@@ -988,7 +990,7 @@ class MainWindow(QMainWindow):
                 amount=amount_value,
                 description=tx["description"]: self._open_finance_edit_dialog(tid, tx_type, amount, description)
             )
-            delete_btn = self._create_action_button("\u00d7", "Hapus transaksi", danger=True)
+            delete_btn = self._create_action_button("\U0001f5d1", "Hapus data", danger=True)
             delete_btn.clicked.connect(
                 lambda _, tid=tx["id"], desc=tx["description"]: self._handle_finance_delete(tid, desc)
             )
@@ -1801,12 +1803,12 @@ class MainWindow(QMainWindow):
             btn.setProperty("success", True)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setToolTip(tooltip)
-        btn.setFont(QFont("Segoe UI Emoji", 9, QFont.Weight.Bold))
+        btn.setFont(QFont("Segoe UI Emoji", 11, QFont.Weight.Bold))
         if wide:
-            btn.setFixedHeight(30)
-            btn.setMinimumWidth(84)
+            btn.setFixedHeight(34)
+            btn.setMinimumWidth(78)
         else:
-            btn.setFixedSize(30, 30)
+            btn.setFixedSize(34, 34)
         return btn
 
     def _build_action_cell(self, buttons: list[QPushButton]) -> QWidget:
@@ -1815,7 +1817,7 @@ class MainWindow(QMainWindow):
         wrapper.setMinimumHeight(44)
         layout = QHBoxLayout(wrapper)
         layout.setContentsMargins(4, 0, 4, 0)
-        layout.setSpacing(6)
+        layout.setSpacing(8)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         for btn in buttons:
             btn.setSizePolicy(btn.sizePolicy().Policy.Fixed, btn.sizePolicy().Policy.Fixed)
