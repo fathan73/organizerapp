@@ -546,10 +546,10 @@ class MainWindow(QMainWindow):
         header.setSectionResizeMode(action_col, QHeaderView.ResizeMode.ResizeToContents)
         if table is getattr(self, "table_panitia", None):
             header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-            header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+            header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
             header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-            header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-            header.setStretchLastSection(True)
+            header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+            header.setStretchLastSection(False)
             header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def _connect_signals(self) -> None:
@@ -605,9 +605,8 @@ class MainWindow(QMainWindow):
 
             QPushButton[action="true"] {
                 border-radius: 9px;
-                padding: 0px;
+                padding: 0px 8px;
                 min-width: 30px;
-                max-width: 30px;
                 min-height: 30px;
                 max-height: 30px;
                 font-size: 13px;
@@ -933,7 +932,7 @@ class MainWindow(QMainWindow):
             for col, item in enumerate(items):
                 self.table_panitia.setItem(row, col, item)
             self.table_panitia.setCellWidget(row, 2, self.create_badge(member["division"] or "-"))
-            edit_btn = self._create_action_button("\U0001f58a", "Edit anggota")
+            edit_btn = self._create_action_button("\u270f\ufe0f Edit", "Edit anggota", wide=True)
             edit_btn.clicked.connect(
                 lambda _,
                 mid=member["id"],
@@ -941,7 +940,7 @@ class MainWindow(QMainWindow):
                 role=member["role"],
                 division=member["division"]: self._open_panitia_edit_dialog(mid, name, role, division)
             )
-            delete_btn = self._create_action_button("\U0001f5d1", "Hapus anggota", danger=True)
+            delete_btn = self._create_action_button("\U0001f5d1\ufe0f Hapus", "Hapus anggota", danger=True, wide=True)
             delete_btn.clicked.connect(
                 lambda _, mid=member["id"], name=member["name"]: self._handle_panitia_delete(mid, name)
             )
@@ -1790,7 +1789,7 @@ class MainWindow(QMainWindow):
         return item
 
     def _create_action_button(
-        self, text: str, tooltip: str, *, danger: bool = False, success: bool = False
+        self, text: str, tooltip: str, *, danger: bool = False, success: bool = False, wide: bool = False
     ) -> QPushButton:
         btn = QPushButton(text)
         btn.setProperty("action", True)
@@ -1802,7 +1801,12 @@ class MainWindow(QMainWindow):
             btn.setProperty("success", True)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setToolTip(tooltip)
-        btn.setFixedSize(30, 30)
+        btn.setFont(QFont("Segoe UI Emoji", 9, QFont.Weight.Bold))
+        if wide:
+            btn.setFixedHeight(30)
+            btn.setMinimumWidth(84)
+        else:
+            btn.setFixedSize(30, 30)
         return btn
 
     def _build_action_cell(self, buttons: list[QPushButton]) -> QWidget:
